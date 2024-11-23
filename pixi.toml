@@ -1,0 +1,23 @@
+[project]
+authors = ["Mehmet Efe Akça <efeakca@gmail.com>"]
+channels = ["conda-forge"]
+description = "Add a short description here"
+name = "pfresgo"
+platforms = ["osx-arm64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = ">=3.9.15,<4"
+h5py = ">=3.1.0,<4"
+matplotlib = ">=3.5.3,<4"
+numpy = ">=1.19.5,<2"
+pytest = ">=8.3.3,<9"
+pytest-cov = ">=6.0.0,<7"
+six = ">=1.16.0,<2"
+keras = ">=3.6.0,<4"
+tensorflow = ">=2.17.0,<3"
+
+[pypi-dependencies]
+biopython = ">=1.84, <2"

@@ -1,59 +1,167 @@
 import tensorflow as tf
-tf.compat.v1.disable_eager_execution()
-from autoencoder_util import get_batched_dataset
+from typing import List, Tuple, Optional
+from dataclasses import dataclass
 
+@dataclass
+class AutoEncoderConfig:
+    """Configuration for AutoEncoder model"""
+    input_dim: int
+    hidden_dims: List[int]
+    learning_rate: float = 0.001
+    batch_size: int = 32
+    num_steps: int = 100
+    model_name: str = 'autoencoder'
+    activation: str = 'relu'
+    optimizer_beta1: float = 0.95
+    optimizer_beta2: float = 0.95
+    early_stopping_patience: int = 5
+    checkpoint_path: Optional[str] = None
 
 class AutoEncoder:
-    def __init__(self, input_dim, hidden_dims, learning_rate, batch_size, num_steps,model_name):
-        self.input_dim = input_dim
-        self.num_hidden = hidden_dims
-        self.learning_rate = learning_rate
-        self.batch_size = batch_size
-        self.num_steps = num_steps
-        self.model_name = model_name
-        self._build_model()
+    """
+    AutoEncoder implementation using TF 2.x practices
 
-    def _build_model(self):
+    Args:
+        config: AutoEncoderConfig containing model parameters
+    """
+    def __init__(self, config: AutoEncoderConfig):
+        self.config = config
+        self.model = self._build_model()
+        self.history = None
 
-        input_seq = tf.keras.layers.Input(shape=(None, self.input_dim), name='seq')
+    def _build_model(self) -> tf.keras.Model:
+        """
+        Builds the autoencoder architecture using Keras Functional API
+        """
+        print("Debug: Starting model build")
+        print(f"Input dim: {self.config.input_dim}")
+        print(f"Hidden dims: {self.config.hidden_dims}")
+
+        input_seq = tf.keras.layers.Input(shape=(5, self.config.input_dim))
+        print(f"Input shape: {input_seq.shape}")
+
+        # Encoder
         x = input_seq
-        x0 = tf.keras.layers.Dense(self.num_hidden[0], use_bias=True, activation='relu', name='encoder{}'.format(0))(x)
-        x1 = tf.keras.layers.Dense(self.num_hidden[1], use_bias=True, activation='relu', name='encoder{}'.format(1))(x0)
-        x2 = tf.keras.layers.Dense(self.num_hidden[2], use_bias=True, activation='relu', name='encoder{}'.format(2))(x1)
-        decoder_dim = [i for i in reversed(self.num_hidden)]
-        y0 = tf.keras.layers.Dense(decoder_dim[0], use_bias=True, activation='relu', name='decoder{}'.format(0))(x2)
-        y1 = tf.keras.layers.Dense(decoder_dim[1], use_bias=True, activation='relu', name='decoder{}'.format(1))(y0)
-        output_seq = tf.keras.layers.Dense(decoder_dim[2], use_bias=True, activation='relu', name='decoder{}'.format(2))(y1)
+        for i, dim in enumerate(self.config.hidden_dims):
+            x = tf.keras.layers.Dense(
+                dim,
+                activation=self.config.activation,
+                name=f'encoder_{i}'
+            )(x)
+            print(f"Encoder layer {i} output shape: {x.shape}")
 
-        self.model = tf.keras.Model(inputs=input_seq, outputs=output_seq)
-        optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate, beta_1=0.95, beta_2=0.95)
-        self.model.compile(optimizer=optimizer, loss='mse')
-        print(self.model.summary())
+        # Decoder
+        for i, dim in enumerate(self.config.hidden_dims[::-1]):
+            x = tf.keras.layers.Dense(
+                dim,
+                activation=self.config.activation,
+                name=f'decoder_{i}'
+            )(x)
+            print(f"Decoder layer {i} output shape: {x.shape}")
 
-    def train(self, train_data, valid_data):
+        # Final reconstruction
+        outputs = tf.keras.layers.Dense(
+            self.config.input_dim,
+            activation=None,
+            name='reconstruction'
+        )(x)
+        print(f"Final output shape: {outputs.shape}")
 
-        batch_train = get_batched_dataset(train_data,
-                                          batch_size=self.batch_size
-                                          )
+        model = tf.keras.Model(inputs=input_seq, outputs=outputs)
 
-        batch_valid = get_batched_dataset(valid_data,
-                                          batch_size=self.batch_size
-                                          )
-        es = tf.keras.callbacks.EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=5)
-        mc = tf.keras.callbacks.ModelCheckpoint('./trained_model'+self.model_name + '_best_train_model.h5', monitor='val_loss', mode='min', verbose=1, save_best_only=True, save_weights_only=True)
+        print("\nDebug: Model summary:")
+        model.summary()
 
-        history = self.model.fit(batch_train,
-                                 epochs=self.num_steps,
-                                 validation_data=batch_valid,
-                                 steps_per_epoch= 29902 // self.batch_size,
-                                 validation_steps= 3323 // self.batch_size,
-                                 callbacks=[es, mc]
-                                 )
+        print("\nDebug: Compiling model")
+        print(f"Learning rate: {self.config.learning_rate}")
+        print(f"Beta1: {self.config.optimizer_beta1}")
+        print(f"Beta2: {self.config.optimizer_beta2}")
 
-        self.history = history.history
+        # Define loss function explicitly
+        def reconstruction_loss(y_true, y_pred):
+            return tf.reduce_mean(tf.keras.losses.mean_squared_error(y_true, y_pred))
 
-    def save_model(self):
-        self.model.save('./trained_model'+self.model_name + '.h5')
+        optimizer = tf.keras.optimizers.Adam(
+            learning_rate=self.config.learning_rate,
+            beta_1=self.config.optimizer_beta1,
+            beta_2=self.config.optimizer_beta2
+        )
+
+        model.compile(
+            optimizer="Adam",
+            loss="mse",  # Use custom loss function
+            metrics=['mae']
+        )
+
+        return model
+
+    def train(self, train_data, valid_data, steps_per_epoch, validation_steps):
+        """
+        Train the model with the given data
+        """
+        print("\nDebug: Starting training")
+
+        # Ensure datasets are properly batched and repeated
+        train_data = train_data.repeat()
+        valid_data = valid_data.repeat()
+
+        # Add more debugging
+        print("Training data spec:", train_data.element_spec)
+
+        callbacks = self._get_callbacks()
+
+        try:
+            history = self.model.fit(
+                train_data,
+                validation_data=valid_data,
+                epochs=self.config.num_steps,
+                steps_per_epoch=steps_per_epoch,
+                validation_steps=validation_steps,
+                callbacks=callbacks,
+                verbose=1
+            )
+            return history
+        except Exception as e:
+            print(f"\nDebug: Error during training: {str(e)}")
+            print(f"Error type: {type(e)}")
+            raise
+
+    def save_model(self, path: Optional[str] = None) -> None:
+        """
+        Save the model to disk
+
+        Args:
+            path: Optional custom path to save the model
+        """
+        save_path = path or f'./trained_model_{self.config.model_name}.h5'
+        self.model.save(save_path)
+
+    def _get_callbacks(self) -> list:
+        """
+        Creates a list of callbacks for model training
+        """
+        callbacks = []
+
+        # Add early stopping if patience is specified
+        if self.config.early_stopping_patience:
+            early_stopping = tf.keras.callbacks.EarlyStopping(
+                monitor='val_loss',
+                patience=self.config.early_stopping_patience,
+                restore_best_weights=True
+            )
+            callbacks.append(early_stopping)
+
+        # Add model checkpoint if path is specified
+        if self.config.checkpoint_path:
+            checkpoint = tf.keras.callbacks.ModelCheckpoint(
+                filepath=self.config.checkpoint_path,
+                monitor='val_loss',
+                save_best_only=True,
+                save_weights_only=True
+            )
+            callbacks.append(checkpoint)
+
+        return callbacks
 
 
 
