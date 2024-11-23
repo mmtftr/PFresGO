@@ -17,6 +17,32 @@ class AutoEncoderConfig:
     early_stopping_patience: int = 5
     checkpoint_path: Optional[str] = None
 
+    def __post_init__(self):
+        """Validate configuration parameters"""
+        if self.input_dim <= 0:
+            raise ValueError("input_dim must be positive")
+
+        if not self.hidden_dims:
+            raise ValueError("hidden_dims cannot be empty")
+
+        if any(dim <= 0 for dim in self.hidden_dims):
+            raise ValueError("all hidden dimensions must be positive")
+
+        if self.learning_rate <= 0:
+            raise ValueError("learning_rate must be positive")
+
+        if self.batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+
+        if self.num_steps <= 0:
+            raise ValueError("num_steps must be positive")
+
+        if not isinstance(self.model_name, str):
+            raise ValueError("model_name must be a string")
+
+        if self.activation not in ['relu', 'tanh', 'sigmoid']:
+            raise ValueError("activation must be one of: relu, tanh, sigmoid")
+
 class AutoEncoder:
     """
     AutoEncoder implementation using TF 2.x practices
@@ -37,7 +63,8 @@ class AutoEncoder:
         print(f"Input dim: {self.config.input_dim}")
         print(f"Hidden dims: {self.config.hidden_dims}")
 
-        input_seq = tf.keras.layers.Input(shape=(5, self.config.input_dim))
+        # Input layer with explicit name
+        input_seq = tf.keras.layers.Input(shape=(5, self.config.input_dim), name='sequence_input')
         print(f"Input shape: {input_seq.shape}")
 
         # Encoder
@@ -69,18 +96,7 @@ class AutoEncoder:
 
         model = tf.keras.Model(inputs=input_seq, outputs=outputs)
 
-        print("\nDebug: Model summary:")
-        model.summary()
-
-        print("\nDebug: Compiling model")
-        print(f"Learning rate: {self.config.learning_rate}")
-        print(f"Beta1: {self.config.optimizer_beta1}")
-        print(f"Beta2: {self.config.optimizer_beta2}")
-
-        # Define loss function explicitly
-        def reconstruction_loss(y_true, y_pred):
-            return tf.reduce_mean(tf.keras.losses.mean_squared_error(y_true, y_pred))
-
+        # Use the custom optimizer instance
         optimizer = tf.keras.optimizers.Adam(
             learning_rate=self.config.learning_rate,
             beta_1=self.config.optimizer_beta1,
@@ -88,10 +104,13 @@ class AutoEncoder:
         )
 
         model.compile(
-            optimizer="Adam",
-            loss="mse",  # Use custom loss function
+            optimizer=optimizer,  # Use the optimizer instance
+            loss="mse",
             metrics=['mae']
         )
+
+        print("\nDebug: Model summary:")
+        model.summary()
 
         return model
 
