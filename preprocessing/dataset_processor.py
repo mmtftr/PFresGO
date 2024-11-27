@@ -17,6 +17,7 @@ class DatasetConfig:
     protein_list_file: Path
     sequence_file: Path
     tfrecord_prefix: Path
+    embeddings_file: Path
     num_threads: int = 3
     num_shards: int = 3
     min_seq_length: int = 60
@@ -30,6 +31,8 @@ class DatasetConfig:
             raise FileNotFoundError(f"Protein list file not found: {self.protein_list_file}")
         if not self.sequence_file.exists():
             raise FileNotFoundError(f"Sequence file not found: {self.sequence_file}")
+        if not self.embeddings_file.exists():
+            raise FileNotFoundError(f"Embeddings file not found: {self.embeddings_file}")
         if self.num_threads <= 0:
             raise ValueError("num_threads must be positive")
         if self.num_shards <= 0:
