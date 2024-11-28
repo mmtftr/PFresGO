@@ -162,3 +162,43 @@ class SequenceProcessor:
     def _int64_feature(value) -> tf.train.Feature:
         """Create int64 feature from value"""
         return tf.train.Feature(int64_list=tf.train.Int64List(value=value))
+
+    @staticmethod
+    def _bytes_feature(value) -> tf.train.Feature:
+        """Create bytes feature from value"""
+        return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+    @staticmethod
+    def _float_feature(value) -> tf.train.Feature:
+        """Create float feature from value or list of values"""
+        if isinstance(value, np.ndarray):
+            value = value.flatten().tolist()
+        return tf.train.Feature(float_list=tf.train.FloatList(value=value))
+
+    def _seq2onehot(self, sequence: str) -> np.ndarray:
+        """Convert amino acid sequence to one-hot encoding"""
+        # Create mapping of amino acids to indices
+        aa_to_idx = {aa: idx for idx, aa in enumerate(sorted(self.VALID_AMINO_ACIDS))}
+
+        # Create one-hot encoding matrix
+        onehot = np.zeros((len(sequence), len(self.VALID_AMINO_ACIDS)), dtype=np.float32)
+        for i, aa in enumerate(sequence):
+            onehot[i, aa_to_idx[aa]] = 1.0
+        return onehot
+
+    def _get_shard_indices(self, shard_idx: int) -> Tuple[int, int]:
+        """Get start and end indices for a shard"""
+        shard_size = len(self.prot_list) // self.config.num_shards
+        start_idx = shard_idx * shard_size
+        end_idx = start_idx + shard_size if shard_idx < self.config.num_shards - 1 else len(self.prot_list)
+        return start_idx, end_idx
+
+    def _get_residue_embedding(self, prot_id: str) -> np.ndarray:
+        """Get residue-level embeddings for a protein"""
+        with h5py.File(self.config.embeddings_file, 'r') as f:
+            return f[f"{prot_id}/residue_embedding"][:]
+
+    def _get_protein_embedding(self, prot_id: str) -> np.ndarray:
+        """Get protein-level embedding for a protein"""
+        with h5py.File(self.config.embeddings_file, 'r') as f:
+            return f[f"{prot_id}/protein_embedding"][:]
