@@ -3,6 +3,9 @@ import tensorflow as tf
 from .PFresGO_util import get_batched_dataset, GroupWiseLinear
 from .PFresGO_decoder import Decoder
 import matplotlib.pyplot as plt
+import sys
+sys.path.append('..')
+from autoencoder import AutoEncoder
 
 
 
@@ -19,7 +22,9 @@ class PFresGO(object):
         self.num_heads = num_heads
 
         self.decoder = Decoder(num_hidden_layers, hidden_size, num_heads, dff, output_dim, rate=0.1)
-        autoencoder_model = tf.keras.models.load_model(autoencoder_name)
+        autoencoder_model = AutoEncoder(input_dim=1024, hidden_dims=[1024,256,128],learning_rate=0.001,batch_size=32, num_steps=1, model_name="ae")
+        autoencoder_model.model.load_weights(autoencoder_name)
+        autoencoder_model = autoencoder_model.model
         autoencoder_model = tf.keras.Model(inputs=autoencoder_model.input, outputs=autoencoder_model.get_layer("encoder2").output)
         autoencoder_model.trainable = True
 

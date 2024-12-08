@@ -53,7 +53,7 @@ class AutoEncoder:
         self.history = history.history
 
     def save_model(self):
-        self.model.save('./trained_model'+self.model_name + '.h5')
+        self.model.save('./trained_model/'+self.model_name + '.h5')
 
 
 
