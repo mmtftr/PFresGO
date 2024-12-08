@@ -26,7 +26,7 @@ class AutoEncoder:
         output_seq = tf.keras.layers.Dense(decoder_dim[2], use_bias=True, activation='relu', name='decoder{}'.format(2))(y1)
 
         self.model = tf.keras.Model(inputs=input_seq, outputs=output_seq)
-        optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate, beta_1=0.95, beta_2=0.95)
+        optimizer = tf.keras.optimizers.legacy.Adam(learning_rate=self.learning_rate, beta_1=0.95, beta_2=0.95)
         self.model.compile(optimizer=optimizer, loss='mse')
         print(self.model.summary())
 
